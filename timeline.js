@@ -9,13 +9,15 @@ var colorPalette = [
 	"#afaf7f", "#7faf7f", "#af7f7f", "#7fafaf", "#7f7faf", "#afafaf",
 ]
 
-var magnification = 1.;
 var mouseCenter = [0,0];
 var lastMouseCenter = [0,0];
 var mouseDragging = false;
 var trans = [1,0,0,1,0,0];
 
-var drawCountElement = null;
+var zoomElement;
+var transElement;
+var mouseElement;
+var drawCountElement;
 var timeScale = 5.;
 var timeOffset = 1800;
 var vertOffset = 0;
@@ -40,7 +42,7 @@ var data = [
 	{timeBegin: 1856, timeEnd: 1939, name: "Sigmund Freud", tag: "Psychology"},
 	{timeBegin: 1875, timeEnd: 1961, name: "Carl Gustav Jung", tag: "Psychology"},
 	{timeBegin: 1564, timeEnd: 1642, name: "Galileo Galilei", tag: "Physics"},
-	{timeBegin: 1642, timeEnd: 1726, name: "Issan Newton", tag: "Physics"},
+	{timeBegin: 1642, timeEnd: 1726, name: "Issac Newton", tag: "Physics"},
 	{timeBegin: 1646, timeEnd: 1716, name: "Gottfried Wilhelm Leibniz", tag: "Physics"},
 	{time: 1905, name: "Special Relativity", tag: "Physics"},
 	{time: 1915, name: "General Relativity", tag: "Physics"},
@@ -56,56 +58,26 @@ var data = [
 	{time: 2001, name: "The Agile Manifesto", tag: "Computer Science"},
 ];
 
-/// Vector 2D addition
-function vecadd(v1,v2){
-	return [v1[0] + v2[0], v1[1] + v2[1]];
-}
-
-/// Vector 2D scale
-function vecscale(v1,s2){
-	return [v1[0] * s2, v1[1] * s2];
-}
-
-/// Vector 2D distance
-function vecdist(v1,v2){
-	var dx = v1[0] - v2[0], dy = v1[1] - v2[1];
-	return Math.sqrt(dx * dx + dy * dy);
-}
-
-/// \brief Calculates product of matrices
-///
-/// Note that this function assumes arguments augmented matrices, see http://en.wikipedia.org/wiki/Augmented_matrix
-/// The least significant suffix is rows.
-/// To put it simply, array of coefficients as the same order as parameters to canvas.setTransform().
-function matmp(a,b){
-	var ret = new Array(6);
-	for(var i = 0; i < 3; i++){
-		for(var j = 0; j < 2; j++){
-			var val = 0;
-			for(var k = 0; k < 2; k++)
-				val += a[k * 2 + j] * b[i * 2 + k];
-			if(i === 2)
-				val += a[2 * 2 + j];
-			ret[i * 2 + j] = val;
-		}
-	}
-	return ret;
+function magnify(f, screenX){
+	timeOffset += (f - 1) * screenX / f / timeScale;
+	timeScale *= f;
+	zoomElement.innerHTML = timeScale.toString();
+	transElement.innerHTML = timeOffset.toString();
+	draw();
 }
 
 var magnifyKey = this.magnifyKey = function magnifyKey(e){
-	timeScale *= 1.2;
-	draw();
+	magnify(1.2, width / 2);
 	e.preventDefault();
 }
 
 var minifyKey = this.minifyKey = function minifyKey(e){
-	timeScale /= 1.2;
-	draw();
+	magnify(1 / 1.2, width / 2);
 	e.preventDefault();
 }
 
 var leftKey = this.leftKey = function leftKey(e){
-	timeOffset -= 10 / timeScale;
+	timeOffset -= 20 / timeScale;
 	timeOffset = Math.round(timeOffset);
 	draw();
 	e.preventDefault();
@@ -118,7 +90,7 @@ var upKey = this.upKey = function upKey(e){
 }
 
 var rightKey = this.rightKey = function rightKey(e){
-	timeOffset += 10 / timeScale;
+	timeOffset += 20 / timeScale;
 	timeOffset = Math.round(timeOffset);
 	draw();
 	e.preventDefault();
@@ -137,8 +109,9 @@ window.onload = function() {
 	if ( ! canvas || ! canvas.getContext ) {
 		return false;
 	}
-	width = parseInt(canvas.style.width);
-	height = parseInt(canvas.style.height);
+	var canvasRect = canvas.getBoundingClientRect();
+	width = canvasRect.width;
+	height = canvasRect.height;
 	tags = document.getElementById("tags");
 
 	for(var i = 0; i < data.length; i++){
@@ -162,35 +135,14 @@ window.onload = function() {
 		tags.appendChild(tagElem);
 	}
 
-	var zoomElement = document.getElementById("zoom");
-	var transElement = document.getElementById("trans");
-	var mouseElement = document.getElementById("mouse");
+	zoomElement = document.getElementById("zoom");
+	transElement = document.getElementById("trans");
+	mouseElement = document.getElementById("mouse");
 	drawCountElement = document.getElementById("drawcount");
-
-	function magnify(f){
-		// Prepare the transformation matrix for zooming
-		trans = matmp([f, 0, 0, f, (1 - f) * mouseCenter[0], (1 - f) * mouseCenter[1]], trans);
-
-		var result = magnification * f;
-		if(result < 1){
-			// When fully zoomed out, reset the matrix to identity.
-			magnification = 1.;
-			trans = [1, 0, 0, 1, 0, 0];
-		}
-		else
-			magnification = result;
-		// [f, 0, (f - 1) * mouseCenter[0]] * [timeScale, 0, -timeOffset] = [timeScale * f, 0, f * -timeOffset + (f - 1) * mouseCenter[0]]
-		// [0, f, 0] * [0, timeScale, 0] = [0, timeScale * f, 0]
-		timeOffset += (f - 1) * mouseCenter[0] / f / timeScale;
-		timeScale *= f;
-		zoomElement.innerHTML = timeScale.toString();
-		transElement.innerHTML = timeOffset.toString();
-		draw();
-	}
 
 	// For Google Chrome
 	function MouseWheelListenerFunc(e){
-		magnify(0 < e.wheelDelta ? 1.2 : 1. / 1.2);
+		magnify(0 < e.wheelDelta ? 1.2 : 1. / 1.2, mouseCenter[0]);
 
 		// Cancel scrolling by the mouse wheel
 		e.preventDefault();
@@ -198,7 +150,7 @@ window.onload = function() {
 
 	// For FireFox
 	function MouseScrollFunc(e){
-		magnify(e.detail < 0 ? 1.2 : 1. / 1.2);
+		magnify(e.detail < 0 ? 1.2 : 1. / 1.2, mouseCenter[0]);
 
 		// Cancel scrolling by the mouse wheel
 		e.preventDefault();
@@ -331,9 +283,42 @@ function draw() {
 	}
 	ctx.setLineDash([]);
 
+	function rangeOutPast(i, y){
+		ctx.beginPath();
+		ctx.moveTo(0, y + 10);
+		ctx.lineTo(7, y + 5);
+		ctx.lineTo(7, y + 15);
+		ctx.closePath();
+		if(data[i].tag in tagset){
+			ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
+			ctx.fill();
+		}
+		ctx.stroke();
+		ctx.fillStyle = "#000";
+		ctx.textAlign = "left";
+		ctx.fillText(data[i].name, 10, y + 5);
+	}
+
+	function rangeOutFuture(i, y){
+		ctx.beginPath();
+		ctx.moveTo(width, y + 10);
+		ctx.lineTo(width - 7, y + 5);
+		ctx.lineTo(width - 7, y + 15);
+		ctx.closePath();
+		if(data[i].tag in tagset){
+			ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
+			ctx.fill();
+		}
+		ctx.stroke();
+		ctx.fillStyle = "#000";
+		ctx.textAlign = "right";
+		ctx.fillText(data[i].name, width - 10, y + 5);
+	}
+
 	// Draw events and spans
 	ctx.strokeStyle = "#000";
 	var iy = 0;
+	var drawCount = 0;
 	for(var i = 0; i < data.length; i++){
 		if("tag" in data[i] && data[i].tag in tagset && !tagset[data[i].tag].visible)
 			continue;
@@ -342,43 +327,63 @@ function draw() {
 			iy++;
 			continue;
 		}
-		if(height - 20 <= y)
+		if(height - 40 <= y)
 			break;
 		if(("timeBegin" in data[i]) && ("timeEnd" in data[i])){
 			var x0 = (data[i].timeBegin - timeOffset) * timeScale;
 			var x1 = (data[i].timeEnd - timeOffset) * timeScale;
-			if(data[i].tag in tagset){
-				ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-				ctx.beginPath();
-				ctx.fillRect(x0, y + 10, x1 - x0, 8);
+			if(x1 < 0){
+				rangeOutPast(i, y);
 			}
-			ctx.beginPath();
-			ctx.moveTo(x0, y);
-			ctx.lineTo(x0, y + 18);
-			ctx.moveTo(x1, y);
-			ctx.lineTo(x1, y + 18);
-			ctx.moveTo(x0, y + 10);
-			ctx.lineTo(x1, y + 10);
-			ctx.stroke();
-			ctx.fillStyle = "#000";
-			ctx.fillText(data[i].name, (x0 + x1) / 2, y + 5);
+			else if(width < x0){
+				rangeOutFuture(i, y);
+			}
+			else{
+				if(data[i].tag in tagset){
+					ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
+					ctx.beginPath();
+					ctx.fillRect(x0, y + 10, x1 - x0, 8);
+				}
+				ctx.beginPath();
+				ctx.moveTo(x0, y);
+				ctx.lineTo(x0, y + 18);
+				ctx.moveTo(x1, y);
+				ctx.lineTo(x1, y + 18);
+				ctx.moveTo(x0, y + 10);
+				ctx.lineTo(x1, y + 10);
+				ctx.stroke();
+				ctx.fillStyle = "#000";
+				ctx.textAlign = "center";
+				ctx.fillText(data[i].name, (x0 + x1) / 2, y + 5);
+			}
 		}
 		else{
 			var x = (data[i].time - timeOffset) * timeScale;
-			ctx.beginPath();
-			ctx.moveTo(x, y + 10);
-			ctx.lineTo(x + 5, y + 17);
-			ctx.lineTo(x - 5, y + 17);
-			ctx.closePath();
-			ctx.stroke();
-			if(data[i].tag in tagset){
-				ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-				ctx.fill();
+			if(x < 0){
+				rangeOutPast(i, y);
 			}
-			ctx.fillStyle = "#000";
-			ctx.fillText(data[i].name, x, y + 5);
+			else if(width < x){
+				rangeOutFuture(i, y);
+			}
+			else{
+				ctx.beginPath();
+				ctx.moveTo(x, y + 10);
+				ctx.lineTo(x + 5, y + 17);
+				ctx.lineTo(x - 5, y + 17);
+				ctx.closePath();
+				ctx.stroke();
+				if(data[i].tag in tagset){
+					ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
+					ctx.fill();
+				}
+				ctx.fillStyle = "#000";
+				ctx.textAlign = "center";
+				ctx.fillText(data[i].name, x, y + 5);
+			}
 		}
 		iy++;
+		drawCount++;
 	}
+	drawCountElement.innerHTML = drawCount;
 }
 })();
