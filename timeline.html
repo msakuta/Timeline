@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Timeline Editor</title>
+	<meta charset="UTF-8" />
+	<style>
+		.tag{
+			margin: 2px;
+			padding: 2px;
+			border: 1px solid black;
+			background-color: #afaf7f;
+		}
+	</style>
+</head>
+<body>
+	<div id="header">
+		<h1>Timeline Editor</h1>
+	</div>
+	<div>
+			<img src="images/left.png" alt="Previous" onclick="Timeline.leftKey(event)">
+			<img src="images/right.png" alt="Next" onclick="Timeline.rightKey(event)">
+			<img src="images/up.png" alt="Up" onclick="Timeline.upKey(event)">
+			<img src="images/down.png" alt="Down" onclick="Timeline.downKey(event)">
+			<img src="images/plus.png" alt="Magnify" onclick="Timeline.magnifyKey(event)">
+			<img src="images/minus.png" alt="Minify" onclick="Timeline.minifyKey(event)">
+		</div>
+	<canvas id="scratch" width="800px" height="400px" style="width: 800px; height: 400px;">
+		<font size="+3" color="#ff0000">I'm sorry, but your browser seems not supporting HTML5 canvas. Try getting a modern browser and come again!</font>
+	</canvas>
+	<script type="text/javascript" src="timeline.js"></script>
+	<p>
+		Tags: <span id="tags"></span>
+	</p>
+	<h2>Controls</h2>
+	<ul>
+		<li>Left or Right arrow keys to navigate towards past or future.</li>
+		<li>Up or Down arrow keys to scroll vertically.</li>
+		<li>Plus or Minus sign to change time scaling.</li>
+		<li>Mouse wheel also controls the time scale.</li>
+	</ul>
+	You can also use buttons on top of the page.
+	<h2>Debug outputs</h2>
+	<p>Zoom: <span id="zoom"></span></p>
+	<p>Transform: <span id="trans"></span></p>
+	<p>Mouse: <span id="mouse"></span></p>
+	<p>Draw Count: <span id="drawcount"></span></p>
+</body>
+</html>
