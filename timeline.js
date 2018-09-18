@@ -62,6 +62,12 @@ var data = [
 	{time: 2001, name: "The Agile Manifesto", tag: "Computer Science"},
 ];
 
+if(!Math.log10){
+	Math.log10 = function(x){
+		return Math.log(x) / Math.LN10;
+	}
+}
+
 function magnify(f, screenX){
 	timeOffset += (f - 1) * screenX / f / timeScale;
 	timeScale *= f;
@@ -280,7 +286,7 @@ function draw() {
 	ctx2.textBaseline = "top";
 	ctx2.clearRect(0,0,width,xaxisHeight);
 
-	var timeLog = 2-Math.log10(timeScale);
+	var timeLog = 2 - Math.log10(timeScale);
 	var timeInterval = Math.pow(10, Math.floor(timeLog));
 	if(timeLog - Math.floor(timeLog) < 0.5)
 		timeInterval /= 2.;
