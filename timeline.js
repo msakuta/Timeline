@@ -1,8 +1,11 @@
 var Timeline = new (function(){
 'use strict'
 var canvas;
+var container;
+var canvasXAxis;
 var width;
 var height;
+var xaxisHeight;
 var tags;
 
 var colorPalette = [
@@ -21,6 +24,7 @@ var drawCountElement;
 var timeScale = 5.;
 var timeOffset = 1800;
 var vertOffset = 0;
+var itemHeight = 20;
 
 var data = [
 	{timeBegin: -500, timeEnd: -27, name: "Roman Republic", tag: "Europe"},
@@ -84,8 +88,9 @@ var leftKey = this.leftKey = function leftKey(e){
 }
 
 var upKey = this.upKey = function upKey(e){
-	vertOffset -= 20;
-	draw();
+	//vertOffset -= 20;
+	container.scrollTop -= 20;
+	//draw();
 	e.preventDefault();
 }
 
@@ -97,8 +102,9 @@ var rightKey = this.rightKey = function rightKey(e){
 }
 
 var downKey = this.downKey = function downKey(e){
-	vertOffset += 20;
-	draw();
+	//vertOffset += 20;
+	container.scrollTop += 20;
+	//draw();
 	e.preventDefault();
 }
 
@@ -109,9 +115,21 @@ window.onload = function() {
 	if ( ! canvas || ! canvas.getContext ) {
 		return false;
 	}
+	container = document.getElementById("container");
+	if(!container){
+		return false;
+	}
+	canvasXAxis = document.getElementById("xaxis");
+	if(!canvasXAxis || !canvas.getContext){
+		return false;
+	}
+	canvas.style.height = itemHeight * data.length + 'px';
+	canvas.setAttribute('height', itemHeight * data.length + 'px');
 	var canvasRect = canvas.getBoundingClientRect();
 	width = canvasRect.width;
 	height = canvasRect.height;
+	var canvasXAxisRect = canvasXAxis.getBoundingClientRect();
+	xaxisHeight = canvasXAxisRect.height;
 	tags = document.getElementById("tags");
 
 	for(var i = 0; i < data.length; i++){
@@ -245,6 +263,8 @@ function draw() {
 	ctx.setTransform(1,0,0,1,0,0);
 	ctx.clearRect(0,0,width,height);
 
+	var ctx2 = canvasXAxis.getContext('2d');
+
 	var drawCounts = {}, totalCounts = {};
 	for(var i = 0; i < 2; i++){
 		var counts = [drawCounts, totalCounts][i];
@@ -255,13 +275,18 @@ function draw() {
 	ctx.textAlign = "center";
 	ctx.textBaseline = "middle";
 
+	ctx2.font = "bold 16px Helvetica";
+	ctx2.textAlign = "center";
+	ctx2.textBaseline = "top";
+	ctx2.clearRect(0,0,width,xaxisHeight);
+
 	var timeLog = 2-Math.log10(timeScale);
 	var timeInterval = Math.pow(10, Math.floor(timeLog));
 	if(timeLog - Math.floor(timeLog) < 0.5)
 		timeInterval /= 2.;
 	var timeMajorInterval = timeInterval * 5;
 	var timeStart = Math.floor(timeOffset / timeMajorInterval) * timeMajorInterval;
-	var contentHeight = height - 20;
+	var contentHeight = height;
 
 	// Draw vertical lines with equal spacing
 	ctx.strokeStyle = "#000";
@@ -272,7 +297,7 @@ function draw() {
 		if(i % 5 === 0){
 			ctx.setLineDash([]);
 			ctx.fillStyle = "#000";
-			ctx.fillText(timeStart + i * timeInterval, x, contentHeight);
+			ctx2.fillText(timeStart + i * timeInterval, x, 0);
 		}
 		else
 			ctx.setLineDash([5,5]);
@@ -327,7 +352,7 @@ function draw() {
 			iy++;
 			continue;
 		}
-		if(height - 40 <= y)
+		if(height <= y)
 			break;
 		if(("timeBegin" in data[i]) && ("timeEnd" in data[i])){
 			var x0 = (data[i].timeBegin - timeOffset) * timeScale;
