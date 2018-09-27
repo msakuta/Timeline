@@ -8,6 +8,9 @@ var height;
 var xaxisHeight;
 var tags;
 
+var gridContainer;
+var chartContainer;
+
 var colorPalette = [
 	"#afaf7f", "#7faf7f", "#af7f7f", "#7fafaf", "#7f7faf", "#afafaf",
 ]
@@ -68,6 +71,35 @@ if(!Math.log10){
 	}
 }
 
+function clearElems(){
+	while(chartContainer.firstChild){
+		chartContainer.removeChild(chartContainer.firstChild);
+	}
+
+	// We need to forget about deleted children to re-add them
+	for(var i in data){
+		// Pre-allocate timeline chart and text even if it's out of range,
+		// in order to make the z-order consistent, i.e. text should be always
+		// on top of the chart.  Yes, I know it's ugly.
+		var elem;
+		if(("timeBegin" in data[i]) && ("timeEnd" in data[i])){
+			elem = document.createElementNS('http://www.w3.org/2000/svg','rect');
+		}
+		else{
+			elem = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+		}
+		data[i].elem = elem;
+		var textElem = document.createElementNS('http://www.w3.org/2000/svg','text');
+		data[i].textElem = textElem;
+		chartContainer.appendChild(elem);
+		chartContainer.appendChild(textElem);
+
+		// Past and future indicators are created on demand.
+		delete data[i].pastElem;
+		delete data[i].futureElem;
+	}
+}
+
 function magnify(f, screenX){
 	timeOffset += (f - 1) * screenX / f / timeScale;
 	timeScale *= f;
@@ -118,7 +150,7 @@ var tagset = {};
 
 window.onload = function() {
 	canvas = document.getElementById("scratch");
-	if ( ! canvas || ! canvas.getContext ) {
+	if (!canvas) {
 		return false;
 	}
 	container = document.getElementById("container");
@@ -126,11 +158,17 @@ window.onload = function() {
 		return false;
 	}
 	canvasXAxis = document.getElementById("xaxis");
-	if(!canvasXAxis || !canvas.getContext){
+	if(!canvasXAxis || !canvasXAxis.getContext){
 		return false;
 	}
 	canvas.style.height = itemHeight * data.length + 'px';
 	canvas.setAttribute('height', itemHeight * data.length + 'px');
+
+	gridContainer = document.createElementNS('http://www.w3.org/2000/svg','g');
+	canvas.appendChild(gridContainer);
+	chartContainer = document.createElementNS('http://www.w3.org/2000/svg','g');
+	canvas.appendChild(chartContainer);
+
 	var canvasRect = canvas.getBoundingClientRect();
 	width = canvasRect.width;
 	height = canvasRect.height;
@@ -154,6 +192,7 @@ window.onload = function() {
 			var set = tagset[this.innerHTML];
 			set.visible = !set.visible;
 			this.style.color = set.visible ? "#000" : "#4f4f4f";
+			clearElems();
 			draw();
 		}
 		tags.appendChild(tagElem);
@@ -261,14 +300,11 @@ window.onload = function() {
 		mouseElement.innerHTML = "false";
 	};
 
+	clearElems();
 	draw();
 };
 
 function draw() {
-	var ctx = canvas.getContext('2d');
-	ctx.setTransform(1,0,0,1,0,0);
-	ctx.clearRect(0,0,width,height);
-
 	var ctx2 = canvasXAxis.getContext('2d');
 
 	var drawCounts = {}, totalCounts = {};
@@ -276,10 +312,6 @@ function draw() {
 		var counts = [drawCounts, totalCounts][i];
 		counts.edge = counts.vertex = counts.vehicle = counts.signal = 0;
 	}
-
-	ctx.font = "bold 16px Helvetica";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
 
 	ctx2.font = "bold 16px Helvetica";
 	ctx2.textAlign = "center";
@@ -294,60 +326,77 @@ function draw() {
 	var timeStart = Math.floor(timeOffset / timeMajorInterval) * timeMajorInterval;
 	var contentHeight = height;
 
+	// Clear old vertical lines
+	while(gridContainer.firstElementChild)
+		gridContainer.removeChild(gridContainer.firstElementChild);
+
 	// Draw vertical lines with equal spacing
-	ctx.strokeStyle = "#000";
-	ctx.font = "bold 12px Helvetica";
-	ctx.strokeStyle = "#7f7f7f";
 	for(var i = 0; i < 100; i++){
 		var x = (i * timeInterval + timeStart - timeOffset) * timeScale;
+		var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+		line.x1.baseVal.value = x;
+		line.y1.baseVal.value = 0;
+		line.x2.baseVal.value = x;
+		line.y2.baseVal.value = contentHeight;
+		line.setAttribute('stroke', 'black');
+		line.style.stroke = "#7f7f7f";
+		line.style.strokeDasharray = i % 5 === 0 ? "" : "4";
+		gridContainer.appendChild(line);
 		if(i % 5 === 0){
-			ctx.setLineDash([]);
-			ctx.fillStyle = "#000";
 			ctx2.fillText(timeStart + i * timeInterval, x, 0);
 		}
-		else
-			ctx.setLineDash([5,5]);
-		ctx.beginPath();
-		ctx.moveTo(x, 0);
-		ctx.lineTo(x, contentHeight);
-		ctx.stroke();
 	}
-	ctx.setLineDash([]);
+
+	function addText(i, x, y, align){
+		var add = !data[i].textElem;
+		var text = data[i].textElem || document.createElementNS('http://www.w3.org/2000/svg','text');
+		align = align || 'middle';
+		text.style.font = "bold 12px Helvetica";
+		text.setAttribute('text-anchor', align);
+		text.setAttribute('x', x);
+		text.setAttribute('y', y + 12);
+		text.innerHTML = data[i].name;
+		if(add)
+			chartContainer.appendChild(data[i].textElem = text);
+	}
 
 	function rangeOutPast(i, y){
-		ctx.beginPath();
-		ctx.moveTo(0, y + 10);
-		ctx.lineTo(7, y + 5);
-		ctx.lineTo(7, y + 15);
-		ctx.closePath();
-		if(data[i].tag in tagset){
-			ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-			ctx.fill();
+		var add = !data[i].pastElem;
+		var elem = data[i].pastElem || document.createElementNS('http://www.w3.org/2000/svg','polygon');
+		elem.setAttribute('points', '0 10 7 5 7 15');
+		elem.setAttribute('stroke', 'black');
+		elem.setAttribute('fill', colorPalette[tagset[data[i].tag].colorIdx]);
+		elem.setAttribute('transform', 'translate(0 ' + y + ')');
+		elem.style.display = 'block';
+		if(add){
+			chartContainer.appendChild(data[i].pastElem = elem);
 		}
-		ctx.stroke();
-		ctx.fillStyle = "#000";
-		ctx.textAlign = "left";
-		ctx.fillText(data[i].name, 10, y + 5);
+		addText(i, 10, y, 'start');
+		if(data[i].elem)
+			data[i].elem.style.display = 'none';
+		if(data[i].futureElem)
+			data[i].futureElem.style.display = 'none';
 	}
 
 	function rangeOutFuture(i, y){
-		ctx.beginPath();
-		ctx.moveTo(width, y + 10);
-		ctx.lineTo(width - 7, y + 5);
-		ctx.lineTo(width - 7, y + 15);
-		ctx.closePath();
-		if(data[i].tag in tagset){
-			ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-			ctx.fill();
+		var add = !data[i].futureElem;
+		var elem = data[i].futureElem || document.createElementNS('http://www.w3.org/2000/svg','polygon');
+		elem.setAttribute('points', '0 10 -7 5 -7 15');
+		elem.setAttribute('stroke', 'black');
+		elem.setAttribute('fill', colorPalette[tagset[data[i].tag].colorIdx]);
+		elem.setAttribute('transform', 'translate(' + width + ' ' + y + ')');
+		elem.style.display = 'block';
+		if(add){
+			chartContainer.appendChild(data[i].futureElem = elem);
 		}
-		ctx.stroke();
-		ctx.fillStyle = "#000";
-		ctx.textAlign = "right";
-		ctx.fillText(data[i].name, width - 10, y + 5);
+		addText(i, width - 10, y, 'end');
+		if(data[i].elem)
+			data[i].elem.style.display = 'none';
+		if(data[i].pastElem)
+			data[i].pastElem.style.display = 'none';
 	}
 
 	// Draw events and spans
-	ctx.strokeStyle = "#000";
 	var iy = 0;
 	var drawCount = 0;
 	for(var i = 0; i < data.length; i++){
@@ -370,22 +419,25 @@ function draw() {
 				rangeOutFuture(i, y);
 			}
 			else{
-				if(data[i].tag in tagset){
-					ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-					ctx.beginPath();
-					ctx.fillRect(x0, y + 10, x1 - x0, 8);
+				var add = !data[i].elem;
+				var bar = data[i].elem || document.createElementNS('http://www.w3.org/2000/svg','rect');
+				bar.x.baseVal.value = x0;
+				bar.y.baseVal.value = y;
+				bar.width.baseVal.value = x1 - x0;
+				bar.height.baseVal.value = 18;
+				bar.setAttribute('stroke', 'black');
+				bar.setAttribute('fill', colorPalette[tagset[data[i].tag].colorIdx]);
+				if(add){
+					chartContainer.appendChild(data[i].elem = bar);
 				}
-				ctx.beginPath();
-				ctx.moveTo(x0, y);
-				ctx.lineTo(x0, y + 18);
-				ctx.moveTo(x1, y);
-				ctx.lineTo(x1, y + 18);
-				ctx.moveTo(x0, y + 10);
-				ctx.lineTo(x1, y + 10);
-				ctx.stroke();
-				ctx.fillStyle = "#000";
-				ctx.textAlign = "center";
-				ctx.fillText(data[i].name, (x0 + x1) / 2, y + 5);
+				else{
+					data[i].elem.style.display = 'block';
+				}
+				addText(i, (x0 + x1) / 2, y);
+				if(data[i].pastElem)
+					data[i].pastElem.style.display = 'none';
+				if(data[i].futureElem)
+					data[i].futureElem.style.display = 'none';
 			}
 		}
 		else{
@@ -397,19 +449,23 @@ function draw() {
 				rangeOutFuture(i, y);
 			}
 			else{
-				ctx.beginPath();
-				ctx.moveTo(x, y + 10);
-				ctx.lineTo(x + 5, y + 17);
-				ctx.lineTo(x - 5, y + 17);
-				ctx.closePath();
-				ctx.stroke();
-				if(data[i].tag in tagset){
-					ctx.fillStyle = colorPalette[tagset[data[i].tag].colorIdx];
-					ctx.fill();
+				var add = !data[i].elem;
+				var elem = data[i].elem || document.createElementNS('http://www.w3.org/2000/svg','polygon');
+				elem.setAttribute('points', '0 10 5 17 -5 17');
+				elem.setAttribute('stroke', 'black');
+				elem.setAttribute('fill', colorPalette[tagset[data[i].tag].colorIdx]);
+				elem.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
+				if(add){
+					chartContainer.appendChild(data[i].elem = elem);
 				}
-				ctx.fillStyle = "#000";
-				ctx.textAlign = "center";
-				ctx.fillText(data[i].name, x, y + 5);
+				else{
+					data[i].elem.style.display = 'block';
+				}
+				addText(i, x, y);
+				if(data[i].pastElem)
+					data[i].pastElem.style.display = 'none';
+				if(data[i].futureElem)
+					data[i].futureElem.style.display = 'none';
 			}
 		}
 		iy++;
