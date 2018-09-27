@@ -9,6 +9,8 @@ var height;
 var xaxisHeight;
 var tags;
 var toolTip;
+var toolTipWidth = 600;
+var toolTipMargin = 30;
 
 var gridContainer;
 var chartContainer;
@@ -128,8 +130,8 @@ function clearElems(){
 			var left = r.left - cr.left;
 			if(left < 0)
 				left = 0;
-			else if(width < left)
-				left = width;
+			else if(cr.width - toolTipWidth - toolTipMargin < left)
+				left = cr.width - toolTipWidth - toolTipMargin;
 			toolTip.style.left = left + 'px';
 			var top = r.bottom - cr.top - 1;
 			if(top < 0)
@@ -238,20 +240,22 @@ window.onload = function() {
 	chartContainer = document.createElementNS('http://www.w3.org/2000/svg','g');
 	canvas.appendChild(chartContainer);
 
+	var canvasRect = canvas.getBoundingClientRect();
+	width = canvasRect.width;
+	height = canvasRect.height;
+
 	toolTip = document.createElement('dim');
 	toolTip.setAttribute('id', 'tooltip');
 	//toolTip.setAttribute('class', 'noselect');
 	toolTip.innerHTML = 'hello there';
 	toolTip.style.zIndex = 100; // Usually comes on top of all the other elements
 	toolTip.style.display = 'none'; // Initially invisible
+	toolTip.style.width = toolTipWidth + 'px'; // Limit the width to the same as the canvas, because too wide tooltip is painful to read.
 	toolTip.addEventListener('mouseleave', function(e){
 		toolTip.style.display = 'none';
 	});
 	body.appendChild(toolTip);
 
-	var canvasRect = canvas.getBoundingClientRect();
-	width = canvasRect.width;
-	height = canvasRect.height;
 	var canvasXAxisRect = canvasXAxis.getBoundingClientRect();
 	xaxisHeight = canvasXAxisRect.height;
 	tags = document.getElementById("tags");
