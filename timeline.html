@@ -10,9 +10,38 @@
 			border: 1px solid black;
 			background-color: #afaf7f;
 		}
+
+		#container{
+			position: relative;
+			line-height: 80%;
+		}
+
+		#tooltip{
+			position: absolute;
+			border: 3px solid #0000ff;
+			padding: 5px;
+			background-color: #ffffaf;
+			text-align: left;
+			font-family: sans-serif;
+			line-height: 120%;
+		}
+
+		/* Class that prevents text selection by mouse dragging.
+			The style is not defined by standard, so we'd write down browser-dependent styles for major browsers.
+			Support by IE11 is somewhat incomplete since Ctrl+A selects the text in elements even with this style. */
+		.noselect{
+			-webkit-touch-callout: none; /* iOS Safari */
+			-webkit-user-select: none;   /* Chrome/Safari/Opera */
+			-khtml-user-select: none;    /* Konqueror */
+			-moz-user-select: none;      /* Firefox */
+			-ms-user-select: none;       /* IE/Edge */
+			user-select: none;           /* non-prefixed version, currently
+											not supported by any browser */
+		}
+
 	</style>
 </head>
-<body>
+<body style="position: relative">
 	<div id="header">
 		<h1>Timeline Editor</h1>
 	</div>
@@ -24,7 +53,7 @@
 			<img src="images/plus.png" alt="Magnify" onclick="Timeline.magnifyKey(event)">
 			<img src="images/minus.png" alt="Minify" onclick="Timeline.minifyKey(event)">
 		</div>
-	<div id="container" style="overflow-y: scroll; width: 820px; height: 400px;">
+	<div id="container" style="overflow-y: scroll; width: 820px; height: 600px;">
 	<svg id="scratch" width="800px" height="400px" style="width: 800px; height: 400px;">
 	</svg>
 	</div>
