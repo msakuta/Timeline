@@ -4,6 +4,9 @@ var body;
 var canvas;
 var container;
 var canvasXAxis;
+var xaxisbar;
+var xaxisContainer;
+var xScrollBarElem;
 var width;
 var height;
 var xaxisHeight;
@@ -11,6 +14,9 @@ var tags;
 var toolTip;
 var toolTipWidth = 600;
 var toolTipMargin = 30;
+var spanStart = Number.POSITIVE_INFINITY;
+var spanEnd = Number.NEGATIVE_INFINITY;
+var xScrollBarDragging = false;
 
 var gridContainer;
 var chartContainer;
@@ -166,9 +172,33 @@ function clearElems(){
 	}
 }
 
+// It's tricky to obtain client coordinates of a HTML element.
+function getOffsetRect(elem){
+	var box = elem.getBoundingClientRect();
+	var body = document.body;
+	var docElem = document.documentElement;
+
+	var clientTop = docElem.clientTop || body.clientTop || 0
+	var clientLeft = docElem.clientLeft || body.clientLeft || 0
+
+	var top  = box.top - clientTop
+	var left = box.left - clientLeft
+
+	return { top: Math.round(top), left: Math.round(left), width: box.width }
+}
+
+function setViewRangeX(x0, x1){
+	if(x0 < spanStart)
+		x0 = spanStart;
+	if(spanEnd < x1)
+		x1 = spanEnd;
+	timeOffset = x0;
+	timeScale = width / (x1 - x0);
+}
+
 function magnify(f, screenX){
-	timeOffset += (f - 1) * screenX / f / timeScale;
-	timeScale *= f;
+	var x0 = timeOffset + (f - 1) * screenX / f / timeScale;
+	setViewRangeX(x0, x0 + width / (timeScale * f));
 	zoomElement.innerHTML = timeScale.toString();
 	transElement.innerHTML = timeOffset.toString();
 	draw();
@@ -234,6 +264,17 @@ window.onload = function() {
 	}
 	canvas.style.height = itemHeight * data.length + 'px';
 	canvas.setAttribute('height', itemHeight * data.length + 'px');
+
+	xaxisbar = document.getElementById("xaxisbar");
+	if(!xaxisbar){
+		return false;
+	}
+	xaxisbar.style.backgroundColor = "#dfdfdf";
+
+	xaxisContainer = document.getElementById("xaxisContainer");
+	if(!xaxisContainer){
+		return false;
+	}
 
 	gridContainer = document.createElementNS('http://www.w3.org/2000/svg','g');
 	canvas.appendChild(gridContainer);
@@ -327,22 +368,9 @@ window.onload = function() {
 	if(canvas.addEventListener){
 		canvas.addEventListener("mousewheel" , MouseWheelListenerFunc);
 		canvas.addEventListener("DOMMouseScroll" , MouseScrollFunc);
+		xaxisContainer.addEventListener("mousewheel" , MouseWheelListenerFunc);
+		xaxisContainer.addEventListener("DOMMouseScroll" , MouseScrollFunc);
 		window.addEventListener("keydown", keydown);
-	}
-
-	// It's tricky to obtain client coordinates of a HTML element.
-	function getOffsetRect(elem){
-		var box = elem.getBoundingClientRect();
-		var body = document.body;
-		var docElem = document.documentElement;
- 
-		var clientTop = docElem.clientTop || body.clientTop || 0
-		var clientLeft = docElem.clientLeft || body.clientLeft || 0
-
-		var top  = box.top - clientTop
-		var left = box.left - clientLeft
-
-		return { top: Math.round(top), left: Math.round(left) }
 	}
 
 	canvas.onmousemove = function (e){
@@ -480,6 +508,16 @@ function draw() {
 			data[i].pastElem.style.display = 'none';
 	}
 
+	// Accumulators for global span
+	spanStart = Number.POSITIVE_INFINITY;
+	spanEnd = Number.NEGATIVE_INFINITY;
+	function spanAccum(x){
+		if(x < spanStart)
+			spanStart = x;
+		if(spanEnd < x)
+			spanEnd = x;
+	}
+
 	// Draw events and spans
 	var iy = 0;
 	var drawCount = 0;
@@ -496,6 +534,8 @@ function draw() {
 		if(("timeBegin" in data[i]) && ("timeEnd" in data[i])){
 			var x0 = (data[i].timeBegin - timeOffset) * timeScale;
 			var x1 = (data[i].timeEnd - timeOffset) * timeScale;
+			spanAccum(data[i].timeBegin);
+			spanAccum(data[i].timeEnd);
 			if(x1 < 0){
 				rangeOutPast(i, y);
 			}
@@ -526,6 +566,7 @@ function draw() {
 		}
 		else{
 			var x = (data[i].time - timeOffset) * timeScale;
+			spanAccum(data[i].time);
 			if(x < 0){
 				rangeOutPast(i, y);
 			}
@@ -555,6 +596,49 @@ function draw() {
 		iy++;
 		drawCount++;
 	}
+
+	if(!xScrollBarElem){
+		xScrollBarElem = document.createElementNS('http://www.w3.org/2000/svg','rect');
+		xScrollBarElem.style.border = "solid 1px black";
+		xScrollBarElem.style.fill = "#7f7f7f";
+		xScrollBarElem.setAttribute('height', 40);
+		xScrollBarElem.setAttribute('width', 40);
+		xaxisbar.addEventListener('pointerdown', function(e){
+			xScrollBarDragging = true;
+			this.setPointerCapture(e.pointerId);
+		});
+		xaxisbar.addEventListener('mousemove', function(e){
+			if(xScrollBarDragging){
+				var r = getOffsetRect(xaxisbar);
+
+				var timeWidth = width / timeScale;
+				var x = (e.clientX - r.left) / r.width * (spanEnd - spanStart) + spanStart;
+				var x0 = x - timeWidth/ 2;
+				var x1 = x + timeWidth/ 2;
+				if(x0 < spanStart){
+					x1 += spanStart - x0;
+					x0 = spanStart;
+				}
+				if(spanEnd < x1){
+					x0 += spanEnd - x1;
+					x1 = spanEnd;
+				}
+				setViewRangeX(x0, x1);
+				draw();
+			}
+		});
+		xaxisbar.addEventListener('pointerup', function(e){
+			xScrollBarDragging = false;
+			this.releasePointerCapture(e.pointerId);
+		});
+		xaxisbar.appendChild(xScrollBarElem);
+	}
+	var r = xaxisbar.getBoundingClientRect();
+	var x = r.width * (timeOffset - spanStart) / (spanEnd - spanStart);
+	var xScrollBarWidth = r.width * r.width / timeScale / (spanEnd - spanStart); // (spanEnd - spanStart);
+	xScrollBarElem.setAttribute('x', x);
+	xScrollBarElem.setAttribute('width', xScrollBarWidth);
+
 	drawCountElement.innerHTML = drawCount;
 }
 })();

@@ -57,7 +57,10 @@
 	<svg id="scratch" width="800px" height="400px" style="width: 800px; height: 400px;">
 	</svg>
 	</div>
-	<canvas id="xaxis" width="800px" height="40px" style="width: 800px; height: 40px;"></canvas>
+	<div id="xaxisContainer" style="position: relative; width: 800px; height: 40px">
+		<canvas id="xaxis" width="800px" height="20px" style="position: absolute; width: 800px; height: 20px;"></canvas><br>
+		<svg id="xaxisbar" width="800px" height="20px" style="position: absolute; top: 20px; width: 800px; height: 20px;"></svg>
+	</div>
 	<script type="text/javascript" src="timeline.js"></script>
 	<p>
 		Tags: <span id="tags"></span>
