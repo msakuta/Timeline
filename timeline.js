@@ -5,6 +5,8 @@ var canvas;
 var container;
 var canvasXAxis;
 var xaxisbar;
+var xThumbLeftElem;
+var xThumbRightElem;
 var xaxisContainer;
 var xScrollBarElem;
 var width;
@@ -16,7 +18,7 @@ var toolTipWidth = 600;
 var toolTipMargin = 30;
 var spanStart = Number.POSITIVE_INFINITY;
 var spanEnd = Number.NEGATIVE_INFINITY;
-var xScrollBarDragging = false;
+var xScrollBarDragging = '';
 
 var gridContainer;
 var chartContainer;
@@ -599,45 +601,99 @@ function draw() {
 
 	if(!xScrollBarElem){
 		xScrollBarElem = document.createElementNS('http://www.w3.org/2000/svg','rect');
-		xScrollBarElem.style.border = "solid 1px black";
+		xScrollBarElem.style.stroke = "black";
 		xScrollBarElem.style.fill = "#7f7f7f";
-		xScrollBarElem.setAttribute('height', 40);
+		xScrollBarElem.setAttribute('height', 20);
 		xScrollBarElem.setAttribute('width', 40);
+		xThumbLeftElem = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		xThumbLeftElem.style.stroke = "black";
+		xThumbLeftElem.style.fill = "#7f7fff";
+		xThumbLeftElem.setAttribute('height', 20);
+		xThumbLeftElem.setAttribute('width', 12);
+		xThumbLeftElem.setAttribute('x', 0);
+		xThumbRightElem = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		xThumbRightElem.style.stroke = "black";
+		xThumbRightElem.style.fill = "#7f7fff";
+		xThumbRightElem.setAttribute('height', 20);
+		xThumbRightElem.setAttribute('width', 12);
 		xaxisbar.addEventListener('pointerdown', function(e){
-			xScrollBarDragging = true;
+			xScrollBarDragging = 'center';
 			this.setPointerCapture(e.pointerId);
 		});
+		xThumbLeftElem.addEventListener('pointerdown', function(e){
+			xScrollBarDragging = 'left';
+			xaxisbar.setPointerCapture(e.pointerId);
+			e.stopPropagation();
+		});
+		xThumbRightElem.addEventListener('pointerdown', function(e){
+			xScrollBarDragging = 'right';
+			xaxisbar.setPointerCapture(e.pointerId);
+			e.stopPropagation();
+		});
 		xaxisbar.addEventListener('mousemove', function(e){
-			if(xScrollBarDragging){
+			if(xScrollBarDragging !== ''){
 				var r = getOffsetRect(xaxisbar);
 
+				// Viewport width in unit of time (years)
 				var timeWidth = width / timeScale;
-				var x = (e.clientX - r.left) / r.width * (spanEnd - spanStart) + spanStart;
-				var x0 = x - timeWidth/ 2;
-				var x1 = x + timeWidth/ 2;
-				if(x0 < spanStart){
-					x1 += spanStart - x0;
-					x0 = spanStart;
+				
+				var x0, x1;
+				if(xScrollBarDragging === 'center'){
+					var x = (e.clientX - r.left) / r.width * (spanEnd - spanStart) + spanStart;
+					x0 = x - timeWidth/ 2;
+					x1 = x + timeWidth/ 2;
+
+					// Limit viewport inside data span
+					if(x0 < spanStart){
+						x1 += spanStart - x0;
+						x0 = spanStart;
+					}
+					if(spanEnd < x1){
+						x0 += spanEnd - x1;
+						x1 = spanEnd;
+					}
 				}
-				if(spanEnd < x1){
-					x0 += spanEnd - x1;
-					x1 = spanEnd;
+				else if(xScrollBarDragging === 'left'){
+					x0 = (e.clientX - r.left) / r.width * (spanEnd - spanStart) + spanStart;
+					x1 = timeOffset + timeWidth;
 				}
+				else if(xScrollBarDragging === 'right'){
+					x0 = timeOffset;
+					x1 = (e.clientX - r.left) / r.width * (spanEnd - spanStart) + spanStart;
+				}
+
+				// Check if the viewport range is finite and ordered
+				if(x0 === x1){
+					x1 = x0 + 1;
+				}
+				else if(x1 < x0){
+					// Swap left and right thumbs
+					var temp = x0;
+					x0 = x1;
+					x1 = temp;
+					xScrollBarDragging = xScrollBarDragging === 'left' ? 'right' :
+						xScrollBarDragging === 'right' ? 'left' : xScrollBarDragging;
+				}
+
 				setViewRangeX(x0, x1);
 				draw();
 			}
 		});
 		xaxisbar.addEventListener('pointerup', function(e){
-			xScrollBarDragging = false;
+			xScrollBarDragging = '';
 			this.releasePointerCapture(e.pointerId);
 		});
 		xaxisbar.appendChild(xScrollBarElem);
+		xaxisbar.appendChild(xThumbLeftElem);
+		xaxisbar.appendChild(xThumbRightElem);
 	}
 	var r = xaxisbar.getBoundingClientRect();
 	var x = r.width * (timeOffset - spanStart) / (spanEnd - spanStart);
 	var xScrollBarWidth = r.width * r.width / timeScale / (spanEnd - spanStart); // (spanEnd - spanStart);
 	xScrollBarElem.setAttribute('x', x);
 	xScrollBarElem.setAttribute('width', xScrollBarWidth);
+	xThumbLeftElem.setAttribute('x', x);
+	xThumbRightElem.setAttribute('x', x + xScrollBarWidth - 10);
 
 	drawCountElement.innerHTML = drawCount;
 }
